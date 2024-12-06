@@ -8,11 +8,11 @@
       <jdbc-url>jdbc:postgresql://localhost:5432/postgres</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="bot_database" uuid="6d48e97b-61ac-4a4f-98da-e07547721e09">
+    <data-source source="LOCAL" name="bot_database [2]" uuid="015ebb19-cc19-4d7e-b125-d6c3dcecb4a3">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:C:\Users\andre\PycharmProjects\TG_bot\instance\bot_database.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:C:\Users\after\PycharmProjects\TG_bot\instance\bot_database.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
       <libraries>
         <library>

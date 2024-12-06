@@ -20,7 +20,7 @@ class DbConfig:
 class Config:
     tg_bot_main: TelegramBotConfig
     db: DbConfig
-    api_key: str
+
 
 
 def load_config() -> Config:

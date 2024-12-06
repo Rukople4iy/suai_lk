@@ -1,0 +1,260 @@
+aiogram
+
+
+
+
+
+wsgi.py
+import asyncio
+import logging
+
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from config import Config, load_config
+from src.handlers import echo
+from src.db.db import init_db
+
+logger = logging.getLogger(__name__)
+
+async def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(filename)s:%(lineno)d #%(levelname)-8s "
+        "[%(asctime)s] - %(name)s - %(message)s",
+    )
+
+    logger.info("Starting bot")
+    init_db()
+    config: Config = load_config()
+    logger.info("Config loaded")
+
+    bot_main = Bot(token=config.tg_bot_main.token)
+    storage = MemoryStorage()
+    dp_main = Dispatcher(bot=bot_main, storage=storage)
+
+    dp_main.include_router(echo.router_main)
+    logger.info("Router included")
+
+    await bot_main.delete_webhook(drop_pending_updates=True)
+    logger.info("Webhook deleted, starting polling")
+
+    await asyncio.gather(
+        dp_main.start_polling(bot_main)
+    )
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped")
+
+echo.py
+from aiogram import Router
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import CommandStart
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+from src.db.db import get_user_by_telegram_id, validate_user_login, update_telegram_id
+import src.keyboards.kb as kb
+
+router_main: Router = Router()
+
+class AuthState(StatesGroup):
+    waiting_for_login = State()
+    waiting_for_password = State()
+
+# Хэндлер для команды /start
+@router_main.message(CommandStart)
+async def send_welcome(message: Message, state: FSMContext):
+    await state.clear()
+    user = get_user_by_telegram_id(str(message.from_user.id))
+    if user:
+        await message.answer(f"Добро пожаловать, {user.login}! Вы уже зарегистрированы.", reply_markup=kb.main_menu_kb)
+    else:
+        await message.answer("Добро пожаловать! Вас нет в системе. Нажмите кнопку ниже для входа в аккаунт.", reply_markup=kb.hello_kb)
+
+# Хэндлер для callback_data "sign_in"
+@router_main.callback_query(lambda c: c.data == 'sign_in')
+async def sign_in(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("Введите ваш логин:")
+    await state.set_state(AuthState.waiting_for_login)
+    print("State changed to waiting_for_login")
+
+# Обработчик ввода логина
+@router_main.message(AuthState.waiting_for_login)
+async def process_login(message: Message, state: FSMContext):
+    await state.update_data(login=message.text)
+    await message.answer("Теперь введите ваш пароль:")
+    await state.set_state(AuthState.waiting_for_password)
+    print("State changed to waiting_for_password")
+
+# Обработчик ввода пароля
+@router_main.message(AuthState.waiting_for_password)
+async def process_password(message: Message, state: FSMContext):
+    try:
+        user_data = await state.get_data()
+        login = user_data['login']
+        password = message.text
+
+        user = validate_user_login(login, password)
+
+        if user:
+            if not user.telegram_id:
+                update_telegram_id(login, str(message.from_user.id))
+            await message.answer(f"Вы вошли как {user.login}.", reply_markup=kb.main_menu_kb)
+            await state.clear()
+            print("User authenticated and telegram_id updated")
+        else:
+            attempts = user_data.get('attempts', 0) + 1
+            await state.update_data(attempts=attempts)
+            if attempts < 3:
+                await message.answer(f"Неверный логин или пароль. Попытка {attempts}/3. Пожалуйста, введите ваш логин:")
+                await state.set_state(AuthState.waiting_for_login)
+                print(f"Attempt {attempts}/3 failed. Waiting for login again.")
+            else:
+                retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔄 Попробовать снова", callback_data="retry_sign_in")],
+                    [InlineKeyboardButton(text="📞 Связаться с техподдержкой", callback_data="contact_support")]
+                ])
+                await message.answer("Три попытки неудачны. Выберите одно из действий:", reply_markup=retry_kb)
+                await state.clear()
+                print("Three failed attempts. State cleared.")
+    except Exception as e:
+        await message.answer("Произошла ошибка при обработке ваших данных. Пожалуйста, попробуйте снова.")
+        print(f"Error in process_password: {e}")
+
+# Хэндлер для повторной попытки входа
+@router_main.callback_query(lambda c: c.data == 'retry_sign_in')
+async def retry_sign_in(callback_query: CallbackQuery, state: FSMContext):
+    await callback_query.message.answer("Введите ваш логин:")
+    await state.set_state(AuthState.waiting_for_login)
+    print("Retry sign in. State changed to waiting_for_login")
+
+# Хэндлер для связи с техподдержкой (пример)
+@router_main.callback_query(lambda c: c.data == 'contact_support')
+async def contact_support(callback_query: CallbackQuery):
+    await callback_query.message.answer("Пожалуйста, свяжитесь с техподдержкой по email: support@example.com.")
+
+
+db.py
+import logging
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from config import load_config
+
+# Включаем логи SQLAlchemy
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
+try:
+    config = load_config()
+    logging.info("Config loaded")
+except Exception as e:
+    logging.error(f"Failed to load config: {e}")
+
+DATABASE_URL = f"postgresql://{config.db.user}:{config.db.password}@{config.db.host}/{config.db.database}?client_encoding=utf8"
+logging.info(f"Connecting to database at {DATABASE_URL}")
+
+try:
+    engine = create_engine(DATABASE_URL, echo=True, connect_args={"client_encoding": "utf8"})
+    logging.info("Engine created")
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base = declarative_base()
+    logging.info("Session and Base set up")
+except Exception as e:
+    logging.error(f"Failed to set up database: {e}")
+
+class Group(Base):
+    __tablename__ = "groups"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(String, index=True)
+    login = Column(String, unique=True, index=True)
+    password = Column(String)
+    group_id = Column(Integer)
+
+class Teacher(Base):
+    __tablename__ = "teachers"
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(String, index=True)
+    login = Column(String, unique=True, index=True)
+    password = Column(String)
+    group_id = Column(Integer)
+
+class Admin(Base):
+    __tablename__ = "admins"
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(String, index=True)
+    login = Column(String, unique=True, index=True)
+    password = Column(String)
+
+def init_db():
+    try:
+        Base.metadata.create_all(bind=engine)
+        logging.info("Tables created successfully")
+
+        db = SessionLocal()
+        logging.info("Session started")
+        db.commit()
+        db.close()
+        logging.info("Session committed and closed")
+    except Exception as e:
+        logging.error(f"Failed to initialize database: {e}")
+
+def get_user_by_telegram_id(tg_id):
+    telegram_id = str(tg_id)
+    db = SessionLocal()
+    user = db.query(User).filter(User.telegram_id == telegram_id).first()
+    db.close()
+    logging.info("Checked telegram_id of user")
+    return user
+
+def validate_user_login(login, password):
+    db = SessionLocal()
+    user = db.query(User).filter(User.login == login, User.password == password).first()
+    db.close()
+    logging.info("Validated user login")
+    return user
+
+def update_telegram_id(login, tg_id):
+    telegram_id = str(tg_id)
+    db = SessionLocal()
+    user = db.query(User).filter(User.login == login).first()
+    if user:
+        user.telegram_id = telegram_id
+        db.commit()
+        logging.info(f"Updated telegram_id for user {login}")
+    else:
+        logging.error(f"User {login} not found for updating telegram_id")
+    db.close()
+
+if __name__ == "__main__":
+    init_db()
+
+kb.py
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+hello_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔐 Войти в аккаунт", callback_data="sign_in")]
+])
+
+
+retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔄 Попробовать снова", callback_data="retry_sign_in")],
+    [InlineKeyboardButton(text="📞 Связаться с техподдержкой", callback_data="contact_support")]
+])
+
+
+main_menu_kb = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text="👨 Личный кабинет"),KeyboardButton(text="🧐 Задания" )],
+    [KeyboardButton(text="👥 Группа"),KeyboardButton(text="📊 Расписание" )],
+    [KeyboardButton(text="❓ Как все работает"),KeyboardButton(text="👩‍💻 Связаться с админом")]
+],
+    resize_keyboard=True,
+    input_field_placeholder="Выберите пункт меню")
