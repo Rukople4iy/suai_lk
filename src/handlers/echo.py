@@ -3,7 +3,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from src.db.db import get_user_by_telegram_id, validate_user_login, update_telegram_id, get_users_by_group_id
+import src.db.crud as crud
 import src.keyboards.kb as kb
 
 router_main: Router = Router()
@@ -15,9 +15,9 @@ class AuthState(StatesGroup):
 # Хэндлер для команды /start
 @router_main.message(CommandStart())
 async def send_welcome(message: Message, state: FSMContext):
-    user = get_user_by_telegram_id(str(message.from_user.id))
-    if user:
-        await message.answer(f"Добро пожаловать, {user.login}! Вы уже зарегистрированы.", reply_markup=kb.us_main_menu_kb)
+    student = crud.get_student_by_telegram_id(str(message.from_user.id))
+    if student:
+        await message.answer(f"Добро пожаловать, {student.login}! Вы уже зарегистрированы.", reply_markup=kb.us_main_menu_kb)
     else:
         await message.answer("Добро пожаловать! Вас нет в системе. Нажмите кнопку ниже для входа в аккаунт.", reply_markup=kb.hello_kb)
 
@@ -39,15 +39,15 @@ async def process_login(message: Message, state: FSMContext):
 # Обработчик ввода пароля
 @router_main.message(AuthState.waiting_for_password)
 async def process_password(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    login = user_data.get('login')
+    student_data = await state.get_data()
+    login = student_data.get('login')
     password = message.text.strip()
 
-    user = validate_user_login(login, password)
-    if user:
-        if not user.telegram_id:
-            update_telegram_id(login, str(message.from_user.id))
-        await message.answer(f"Вы вошли как {user.login}.", reply_markup=kb.us_main_menu_kb)
+    student = crud.validate_student_login(login, password)
+    if student:
+        if not student.telegram_id:
+            crud.update_student_telegram_id(login, str(message.from_user.id))
+        await message.answer(f"Вы вошли как {student.login}.", reply_markup=kb.us_main_menu_kb)
         await state.clear()
     else:
         await message.answer("Неверный логин или пароль. Попробуйте снова.")
@@ -64,36 +64,40 @@ async def retry_sign_in_cb(callback: CallbackQuery, state: FSMContext):
 @router_main.callback_query(F.data == 'contact_support')
 async def contact_support_cb(callback: CallbackQuery):
     await callback.answer('')
-    await callback.message.answer("Пожалуйста, свяжитесь с техподдержкой по email: support@example.com.")
+    await callback.message.answer("Пожалуйста, свяжитесь с админом: @NewFail")
 
 # Проверка авторизации для всех хэндлеров, связанных с пользователем
 def require_login(handler):
     async def wrapper(message_or_callback, *args, **kwargs):
-        user = get_user_by_telegram_id(str(message_or_callback.from_user.id))
-        if not user:
+        # Удаляем все неожиданные именованные аргументы
+        accepted_args = handler.__code__.co_varnames[:handler.__code__.co_argcount]
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in accepted_args}
+
+        student = crud.get_student_by_telegram_id(str(message_or_callback.from_user.id))
+        if not student:
             if isinstance(message_or_callback, Message):
-                await message_or_callback.answer("Вы не авторизованы. Пожалуйста, войдите в систему./start")
+                await message_or_callback.answer("Вы не авторизованы. Пожалуйста, войдите в систему с помощью команды /start")
             else:
-                await message_or_callback.answer("Вы не авторизованы. Пожалуйста, войдите в систему./start")
+                await message_or_callback.answer("Вы не авторизованы. Пожалуйста, войдите в систему с помощью команды /start")
             return
-        await handler(message_or_callback, *args, **kwargs)
+        await handler(message_or_callback, *args, **filtered_kwargs)
     return wrapper
 
 # Хэндлер для кнопки "Профиль"
 @router_main.message(F.text == "👨 Профиль")
 @require_login
 async def profile(message: Message):
-    user = get_user_by_telegram_id(str(message.from_user.id))
+    student = crud.get_student_by_telegram_id(str(message.from_user.id))
     profile_text = (
-        f"👤 ФИО: {user.fio}\n"
-        f"👨‍🏫 Аккаунт зарегестрирован на: @{message.from_user.username}\n"
-        f"🏫 Институт/факультет: {user.institute}\n"
-        f"👥 Группа: {user.group.name}\n"
-        f"📃 Номер студенческого билета/ зачетной книжки: {user.student_id}\n"
-        f"👨‍🔬 Специальность: {user.specialty}\n"
-        f"👀 Форма обучения: {user.form_of_study}\n"
-        f"🎓 Уровень профессионального образования: {user.education_level}\n"
-        f"🤑 Бюджет/контракт: {user.budget_contract}"
+        f"👤 ФИО: {student.fio}\n"
+        f"👨‍🏫 Аккаунт зарегистрирован на: @{message.from_user.username}\n"
+        f"🏫 Институт/факультет: {student.group.institute}\n"
+        f"👥 Группа: {student.group.group_number}\n"
+        f"📃 Номер студенческого билета/зачетной книжки: {student.student_id}\n"
+        f"👨‍🔬 Специальность: {student.group.specialty}\n"
+        f"👀 Форма обучения: {student.group.form_of_study}\n"
+        f"🎓 Уровень профессионального образования: {student.group.education_level}\n"
+        f"🤑 Бюджет/контракт: {student.budget_contract}"
     )
     await message.answer(profile_text)
 
@@ -109,11 +113,11 @@ async def info(message: Message):
 @require_login
 async def show_group_members(callback: CallbackQuery):
     await callback.answer('')
-    user = get_user_by_telegram_id(str(callback.from_user.id))
-    group_members = get_users_by_group_id(user.group_id)
+    student = crud.get_student_by_telegram_id(str(callback.from_user.id))
+    group_members = crud.get_students_by_group_number(student.group_number)
     if group_members:
         members_list = "\n".join([f"{index + 1}. {member.fio} (@{member.login})" for index, member in enumerate(group_members)])
-        await callback.message.answer(f"👥 Список участников группы {user.group.name}:\n{members_list}")
+        await callback.message.answer(f"👥 Список участников группы {student.group.group_number}:\n{members_list}")
     else:
         await callback.message.answer("В вашей группе пока нет других участников.")
 
