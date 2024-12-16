@@ -7,21 +7,19 @@ from src.handlers.common_echo import require_role
 
 router_main: Router = Router()
 
+@router_main.callback_query(F.data == 'show_disciplines_and_teachers')
+async def show_disciplines_and_teachers(callback: CallbackQuery):
+    await callback.answer('')
+    result_list = "\n".join(crud.get_disciplines_and_teachers(str(callback.from_user.id)))
+    message_text = f"Дисциплина | Преподаватели\n{result_list}"
 
-# Обработчик для команды "👨 Профиль" с проверкой роли студента
-@router_main.message(F.text == "👨 Профиль студента")
-@require_role('student')
-async def profile_student(message: Message):
-    student = crud.get_student_by_telegram_id(str(message.from_user.id))
-    if student:
-        profile_text = (
-            f"👤 ФИО: {student.fio}\n"
-            f"👨‍🏫 Аккаунт зарегистрирован на: @{message.from_user.username}\n"
-            f"🏫 Институт/факультет: {student.group.institute}\n"
-            f"👥 Группа: {student.group.group_number}\n"
-            f"👨‍🔬 Специальность: {student.group.specialty}\n"
-            f"👀 Форма обучения: {student.group.form_of_study}\n"
-            f"🎓 Уровень профессионального образования: {student.group.education_level}\n"
-            f"🤑 Бюджет/контракт: {student.budget_contract}"
-        )
-        await message.answer(profile_text)
+    await callback.message.answer(message_text)
+
+@router_main.callback_query(F.data == 'show_group_members')
+async def show_group_members(callback: CallbackQuery):
+    await callback.answer('')
+    group_number = (crud.get_student_by_telegram_id(str(callback.from_user.id))).group_number
+    result_list = "\n".join(crud.get_group_members(str(callback.from_user.id)))
+    message_text = f"Список группы {group_number}:\n{result_list}"
+
+    await callback.message.answer(message_text)

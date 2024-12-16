@@ -8,18 +8,11 @@ from src.handlers.common_echo import require_role
 router_main: Router = Router()
 
 
-# Обработчик для команды "👨 Профиль" с проверкой роли учителя
-@router_main.message(F.text == "👨 Профиль преподавателя")
-@require_role('teacher')
-async def profile_teacher(message: Message):
-    teacher = crud.get_teacher_by_telegram_id(str(message.from_user.id))
-    if teacher:
-        profile_text = (
-            f"👤 ФИО: {teacher.fio}\n"
-            f"👨‍🏫 Аккаунт зарегистрирован на: {message.from_user.id}\n"
-            f"🎓 Ученая степень: {teacher.academic_degree}\n"
-            f"🔬 Кафедра: {teacher.department}\n"
-            f"📧 Email: {teacher.email}\n"
-            f"📞 Телефон: {teacher.phone}"
-        )
-        await message.answer(profile_text)
+# Хэндлер для callback_data "us_show_groups"
+@router_main.callback_query(F.data == 'show_teacher_disciplines')
+async def show_group_members(callback: CallbackQuery):
+    await callback.answer('')
+    result_list = "\n".join(crud.get_teacher_disciplines(str(callback.from_user.id)))
+    message_text = f"Дисциплина | Группа\n{result_list}"
+
+    await callback.message.answer(message_text)

@@ -18,13 +18,6 @@ us_main_menu_kb = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text="❓ Как все работает"), KeyboardButton(text="👩‍💻 Связаться с админом")]
 ], resize_keyboard=True, input_field_placeholder="Выберите пункт меню")
 
-us_main_menu_kb = ReplyKeyboardMarkup(keyboard=[
-    [KeyboardButton(text="👨 Профиль"), KeyboardButton(text="🧐 Задания")],
-    [KeyboardButton(text="👥 Материалы"), KeyboardButton(text="📊 Объявления")],
-    [KeyboardButton(text="💁‍♂️ Информация")],
-    [KeyboardButton(text="❓ Как все работает"), KeyboardButton(text="👩‍💻 Связаться с админом")]
-], resize_keyboard=True, input_field_placeholder="Выберите пункт меню")
-
 us_info_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📚 Дисциплины", callback_data="us_show_disciplines")],
     [InlineKeyboardButton(text="📝 Группа", callback_data="us_show_groups")]
