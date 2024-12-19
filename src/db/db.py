@@ -12,7 +12,6 @@ engine = create_engine(DATABASE_URL, echo=False, connect_args={"client_encoding"
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db(Base):
-    # Удаление всех таблиц
-
+ 
     Base.metadata.create_all(bind=engine)
     logging.info("Database tables created.")

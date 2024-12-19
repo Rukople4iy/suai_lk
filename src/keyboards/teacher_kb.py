@@ -24,6 +24,6 @@ info_kb = InlineKeyboardMarkup(inline_keyboard=[
 
 #Загрузить и проверить задание
 task_kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="📩 Загрузка заданий", callback_data="upload_task")],
-    [InlineKeyboardButton(text="✅ Проверка заданий", callback_data="check_task")]
+    [InlineKeyboardButton(text="📩 Загрузка заданий", callback_data="upload_task_teacher")],
+    [InlineKeyboardButton(text="✅ Проверка заданий", callback_data="check_task_teacher")]
 ])

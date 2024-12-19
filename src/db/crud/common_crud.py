@@ -5,9 +5,9 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-def get_user_by_telegram_id(tg_id):
+def get_role_by_telegram_id(tg_id):
     db = SessionLocal()
     user = db.query(Users).filter(Users.telegram_id == tg_id).first()
     logging.info(f"user requested: {user.role, user.telegram_id}")
     db.close()
-    return user
+    return user.role

@@ -22,3 +22,9 @@ us_info_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📚 Дисциплины", callback_data="us_show_disciplines")],
     [InlineKeyboardButton(text="📝 Группа", callback_data="us_show_groups")]
 ])
+
+
+contacts_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="📞Андрон", url="https://t.me/newfail")],
+    [InlineKeyboardButton(text="🤠Лёха", url="https://t.me/Rukople4iy")]
+])
