@@ -1,6 +1,7 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ContentType
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from functools import wraps
 from aiogram.types import Message
 import src.db.crud.common_crud as common_crud
@@ -10,11 +11,15 @@ import src.keyboards.teacher_kb as teacher_kb
 import src.db.crud.student_crud as student_crud
 import src.keyboards.student_kb as student_kb
 import src.keyboards.kb as common_kb
+from src.handlers.student_echo import LoadReport, handle_load_report_file
+from src.handlers.teacher_echo import TaskForm,  handle_task_form_file
+
+
 
 logging.basicConfig(level=logging.INFO)
 
 router_main: Router = Router()
-
+router_file: Router = Router()
 
 def require_role(role):
     def decorator(handler):
@@ -87,3 +92,36 @@ async def task(message: Message):
 @router_main.message(F.text == "👩‍💻 Связаться с админом")
 async def contact_admin(message: Message):
     await message.answer("😍Наши админы", reply_markup=common_kb.contacts_kb)
+
+@router_main.message(F.text == "❓ Как все работает")
+async def how_to_use(message: Message):
+    role = common_crud.get_role_by_telegram_id(str(message.from_user.id))
+    if role == 'teacher':
+        message_text = """
+Кнопка “Профиль” – информация о Вас
+Кнопка “Задания” – загрузка заданий и проверка заданий
+Кнопка “Информация” – кнопки “Дисциплина” и “Группа” для получения сведений о доступных дисциплинах и привязанных групп
+Кнопка “Связаться с админом” – кнопки для перехода к чатам с администраторами
+        """
+        await message.answer(message_text)
+    elif role == 'student':
+        message_text = """
+Кнопка “Профиль” – информация о Вас
+Кнопка “Задания” – загрузка отчётов
+Кнопка “Информация” – кнопки “Дисциплина” для доступа к сведениям о привязанных дисциплинах
+Кнопка “Связаться с админом” – кнопки для перехода к чатам с администраторами
+                """
+        await message.answer(message_text)
+
+
+@router_file.message(F.content_type == ContentType.DOCUMENT)
+async def process_file_code(message: Message, state: FSMContext):
+    logging.info("увидели файл и вошли в состояние.")
+    current_state = await state.get_state()
+    logging.info(f"получили состояние: {current_state}")
+
+
+    if current_state == TaskForm.file_code.state:
+        await handle_task_form_file(message, state)
+    elif current_state == LoadReport.process_file.state:
+        await handle_load_report_file(message, state)

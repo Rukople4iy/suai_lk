@@ -24,10 +24,11 @@ async def main():
     bot_main = Bot(token=config.tg_bot_main.token)
     storage = MemoryStorage()
     dp_main = Dispatcher(bot=bot_main, storage=storage)
+    dp_main.include_router(common_echo.router_file)
     dp_main.include_router(common_echo.router_main)     # общие хендлеры
     dp_main.include_router(guest_echo.router_main)      # гостевые хендлеры
     dp_main.include_router(student_echo.router_main)    # хендлеры студента
-    dp_main.include_router(admin_echo.router_main)      # хендлеры админа
+    # dp_main.include_router(admin_echo.router_main)      # хендлеры админа
     dp_main.include_router(teacher_echo.router_main)    # хендлеры учителя
 
     await bot_main.delete_webhook(drop_pending_updates=True)
