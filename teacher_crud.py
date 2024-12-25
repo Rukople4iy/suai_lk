@@ -1,6 +1,6 @@
 from sqlalchemy.orm import joinedload
 from src.db.db import SessionLocal
-from src.db.models import Teacher, Discipline, GroupDiscipline, Group, Task, GroupTask, ReportTask, Report, Student
+from src.db.models import Teacher, Discipline, GroupDiscipline, Group, Task, GroupTask, ReportTask, Report
 import logging
 from datetime import datetime
 from sqlalchemy.sql import func
@@ -13,7 +13,7 @@ def get_teacher_by_telegram_id(tg_id):
     db.close()
     return teacher
 
-def get_teacher_disciplines_groups(tg_id):
+def get_teacher_disciplines(tg_id):
     db = SessionLocal()
     try:
         teacher = db.query(Teacher).filter(Teacher.telegram_id == tg_id).first()
@@ -147,16 +147,16 @@ def get_students_with_reports_status(group_number: str, task_id: int):
     return student_report_status
 
 # Обновить статус отчета и выставить оценку
-def save_report_details(report_id: int, score: float, comment: str):
-    db: Session = SessionLocal()
+def update_report_status(report_id: int, score: float, comment: str = None):
+    db = SessionLocal()
     try:
         report = db.query(Report).filter(Report.report_id == report_id).first()
         if not report:
             return "Отчет не найден."
 
+        report.report_status = "Проверено"
         report.score = score
         report.teacher_comment = comment
-        report.report_status = "Проверено"
         db.commit()
         return "Успешно обновлено."
     except Exception as e:
@@ -174,7 +174,7 @@ def get_teacher_disciplines(teacher_id):
 
         disciplines = db.query(Discipline).filter(Discipline.teacher_number == teacher.teacher_number).all()
         return [
-            {"discipline": d.discipline}  # Примерное количество
+            {"discipline": d.discipline, "unreviewed_count": 5}  # Примерное количество
             for d in disciplines
         ]
     finally:
@@ -203,24 +203,3 @@ def save_review(comment, score):
         db.commit()
     finally:
         db.close()
-
-
-def get_file_code(report_id):
-    db = SessionLocal()
-    report = db.query(Report).filter(Report.report_id == report_id).first()
-    db.close()
-    return report.file_id
-
-
-def get_task_max_score_by_report(report_id):
-    db = SessionLocal()
-    try:
-        report = db.query(Report).options(joinedload(Report.task_reports).joinedload(ReportTask.task)).filter(Report.report_id == report_id).first()
-        if report and report.task_reports:
-            task = report.task_reports[0].task
-            return task.max_score if task else None
-        else:
-            return None
-    finally:
-        db.close()
-

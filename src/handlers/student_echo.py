@@ -104,7 +104,7 @@ async def browse_task(callback: CallbackQuery):
     await callback.message.answer_document(file)
 
 @router_main.callback_query(F.data.startswith('upload_report:'))
-async def browse_task(callback: CallbackQuery, state: FSMContext):
+async def upload_report(callback: CallbackQuery, state: FSMContext):
     selected_task_id = callback.data.split(':')[1]
     await callback.answer('')
     await state.set_state(LoadReport.process_file)
