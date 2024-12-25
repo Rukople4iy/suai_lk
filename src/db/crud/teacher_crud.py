@@ -124,27 +124,33 @@ def get_tasks_by_discipline(discipline: str):
     return tasks
 
 # Получить список студентов по группе и статус отчетов
-def get_students_with_reports_status(group_number: str, task_id: int):
+async def get_students_with_reports_status(group_number: str, task_id: int):
     db = SessionLocal()
-    students = db.query(Student).filter(Student.group_number == group_number).all()
-    reports = (
-        db.query(Report)
-        .join(Report.task_reports)
-        .filter_by(task_id=task_id)
-        .options(joinedload(Report.student))
-        .all()
-    )
+    try:
+        students = db.query(Student).filter(Student.group_number == group_number).all()
+        reports = (
+            db.query(Report)
+            .join(Report.task_reports)
+            .filter_by(task_id=task_id)
+            .options(joinedload(Report.student))
+            .all()
+        )
 
-    student_report_status = []
-    for student in students:
-        report = next((r for r in reports if r.student_number == student.student_number), None)
-        if report:
-            status_emoji = "✅" if report.report_status == "Проверено" else "📄"
-            student_report_status.append((student, status_emoji, report))
-        else:
-            student_report_status.append((student, "❌", None))
-    db.close()
-    return student_report_status
+        student_report_status = []
+        for student in students:
+            report = next((r for r in reports if r.student_number == student.student_number), None)
+            if report:
+                status_emoji = "✅" if report.report_status == "Проверено" else "📄"
+                student_report_status.append((student, status_emoji, report))
+                logging.info(f"Статус отчета для студента {student.student_number}: {status_emoji}")
+            else:
+                student_report_status.append((student, "❌", None))
+                logging.info(f"Статус отчета для студента {student.student_number}: ❌")
+
+        return student_report_status
+    finally:
+        db.close()
+
 
 # Обновить статус отчета и выставить оценку
 def save_report_details(report_id: int, score: float, comment: str):
@@ -158,12 +164,15 @@ def save_report_details(report_id: int, score: float, comment: str):
         report.teacher_comment = comment
         report.report_status = "Проверено"
         db.commit()
+        logging.info(f"Статус отчета обновлен на 'Проверено' и оценка выставлена: {score}")
         return "Успешно обновлено."
     except Exception as e:
         db.rollback()
         raise e
     finally:
         db.close()
+
+
 
 def get_teacher_disciplines(teacher_id):
     db = SessionLocal()

@@ -8,6 +8,7 @@ from datetime import datetime
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,7 +28,7 @@ async def show_group_members(callback: CallbackQuery):
     result_list = "\n".join([f"{d['discipline']} | {d['group_number']}" for d in disciplines])
     message_text = f"Дисциплина | Группа\n{result_list}"
 
-    await callback.message.answer(message_text)
+    await callback.message.answer(message_text, reply_markup=kb.main_menu_kb)
 
 
 class TaskForm(StatesGroup):
@@ -53,7 +54,7 @@ async def upload_task_teacher(callback: CallbackQuery, state: FSMContext):
         return
 
     discipline_list = "\n".join([f"{idx + 1}. {d['discipline']}" for idx, d in enumerate(disciplines)])
-    await callback.message.answer(f"Введите номер дисциплины\n{discipline_list}")
+    await callback.message.answer(f"Введите номер дисциплины\n{discipline_list}", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.discipline)
 
 
@@ -72,7 +73,7 @@ async def process_discipline(message: Message, state: FSMContext):
         return
 
     group_list = "\n".join([f"{g.group_number}" for idx, g in enumerate(groups)])
-    await message.answer(f"Введите номера групп через пробел\n{group_list}")
+    await message.answer(f"Введите номера групп через пробел\n{group_list}", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.groups)
 
 
@@ -80,14 +81,14 @@ async def process_discipline(message: Message, state: FSMContext):
 async def process_groups(message: Message, state: FSMContext):
     group_numbers = message.text.split()
     await state.update_data(groups=group_numbers)
-    await message.answer("Введите наименование задания")
+    await message.answer("Введите наименование задания", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.task_name)
 
 
 @router_main.message(TaskForm.task_name)
 async def process_task_name(message: Message, state: FSMContext):
     await state.update_data(task_name=message.text)
-    await message.answer("Введите описание задания")
+    await message.answer("Введите описание задания", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.task_description)
 
 
@@ -95,7 +96,7 @@ async def process_task_name(message: Message, state: FSMContext):
 async def process_task_description(message: Message, state: FSMContext):
     await state.update_data(task_description=message.text)
     await message.answer(
-        "Введите номер типа задания\n1. Лабораторная работа\n2. Индивидуальное задание\n3. Расчетно-графическая работа\n4. Курсовой проект (работа)\n5. Практические задания\n6. Отчет о научных исследованиях\n7. Эссе\n8. Реферат")
+        "Введите номер типа задания\n1. Лабораторная работа\n2. Индивидуальное задание\n3. Расчетно-графическая работа\n4. Курсовой проект (работа)\n5. Практические задания\n6. Отчет о научных исследованиях\n7. Эссе\n8. Реферат", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.task_type)
 
 
@@ -112,22 +113,35 @@ async def process_task_type(message: Message, state: FSMContext):
         "8": "Реферат"
     }
     await state.update_data(task_type=task_types[message.text])
-    await message.answer("Введите количество баллов задания")
+    await message.answer("Введите количество баллов задания", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.max_score)
 
 
 @router_main.message(TaskForm.max_score)
 async def process_max_score(message: Message, state: FSMContext):
     await state.update_data(max_score=message.text)
-    await message.answer("Введите предельную дату выполнения в формате ДД.ММ.ГГГГ")
+    await message.answer("Введите предельную дату выполнения в формате ДД.ММ.ГГГГ", reply_markup=kb.back_to_main_menu_kb)
     await state.set_state(TaskForm.due_date)
 
 
 @router_main.message(TaskForm.due_date)
 async def process_due_date(message: Message, state: FSMContext):
-    await state.update_data(due_date=message.text)
-    await message.answer("Загрузите дополнительный материал (максимум 1 файл)")
-    await state.set_state(TaskForm.file_code)
+    due_date_str = message.text
+    try:
+        # Проверка формата даты
+        due_date = datetime.strptime(due_date_str, "%d.%m.%Y").date()
+
+        # Проверка, что дата в будущем
+        if due_date <= datetime.now().date():
+            raise ValueError("Предельная дата выполнения должна быть в будущем.")
+
+        await state.update_data(due_date=due_date_str)
+        await message.answer("Загрузите дополнительный материал (максимум 1 файл)", reply_markup=kb.back_to_main_menu_kb)
+        await state.set_state(TaskForm.file_code)
+
+    except ValueError as e:
+        await message.answer(f"Некорректная дата: {str(e)}. Пожалуйста, введите корректную дату в формате ДД.ММ.ГГГГ.")
+        await state.set_state(TaskForm.due_date)
 
 
 
@@ -138,7 +152,7 @@ async def handle_task_form_file(message: Message, state: FSMContext):
     logging.info("получен id файла.")
     await state.update_data(file_code=file_code)
     logging.info("Файл id сохранен в состояние.")
-    await message.answer("Готово. Задание сформировано и будет отправлено в базу данных.")
+    await message.answer("Готово. Задание сформировано и будет отправлено в базу данных.", reply_markup=kb.main_menu_kb)
 
     # Retrieve data from state and send to database
     data = await state.get_data()
@@ -331,7 +345,7 @@ async def check_task_teacher(callback: CallbackQuery, state: FSMContext):
         return
 
     result_list = "\n".join(f"{i + 1}. {d}" for i, d in enumerate(disciplines))
-    await callback.message.answer(f"Выберите дисциплину, введя её номер:\n{result_list}", reply_markup=back_to_main_menu_kb)
+    await callback.message.answer(f"Выберите дисциплину, введя её номер:\n{result_list}", reply_markup=kb.back_to_main_menu_kb)
 
     logging.info("смениил состояние")
     await state.set_state(CheckReports.discipline_st)
@@ -411,9 +425,9 @@ async def select_task_report(message: Message, state: FSMContext):
     tasks = state_data.get('tasks')
     selected_number = int(message.text.strip()) - 1
     await state.update_data(message_student=message)
-    if isinstance(selected_number, int) and 0 <= selected_number < len(tasks) :
+    if isinstance(selected_number, int) and 0 <= selected_number < len(tasks):
         selected_task = tasks[selected_number]
-        students = crud.get_students_with_reports_status(state_data.get('selected_group').group_number, selected_task.task_id)
+        students = await crud.get_students_with_reports_status(state_data.get('selected_group').group_number, selected_task.task_id)
         if not students:
             await message.answer("Нет студентов с отчетами для этого задания.")
             await state.clear()
@@ -425,6 +439,7 @@ async def select_task_report(message: Message, state: FSMContext):
         await state.set_state(CheckReports.student)
     else:
         await message.answer("Некорректный номер. Пожалуйста, выберите правильный номер задания.")
+
 
 # Выбор студента
 @router_main.message(CheckReports.student)
@@ -534,11 +549,13 @@ async def approve_report(callback: CallbackQuery, state: FSMContext):
     selected_report_id = data.get('selected_report_id')
     score = data.get('score')
     comment = data.get('comment')
-    crud.save_report_details(selected_report_id, score, comment)
-    await callback.message.answer("Отчет успешно сохранен!")
+    result = crud.save_report_details(selected_report_id, score, comment)
+    await callback.message.answer("Оценка успешно сохранена!" if result == "Успешно обновлено." else result)
     state_data = await state.get_data()
     message_estimate = state_data.get('message_estimate')
     await select_task_report(message_estimate, state)
+
+
 
 @router_main.callback_query(F.data == 'reject_report')
 @router_main.message(CheckReports.approve)

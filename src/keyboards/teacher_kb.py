@@ -44,5 +44,5 @@ choose_student_kb = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 back_to_main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="back_to_main_menu_teacher")]
+    [InlineKeyboardButton(text="🔙 Отменить и вернуться в главное меню", callback_data="back_to_main_menu_teacher")]
 ])

@@ -25,8 +25,27 @@ task_view_kb = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
-def generate_task_view_kb(task_id):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏ Просмотреть задание", callback_data=f"file_task:{task_id}")],
-        [InlineKeyboardButton(text="📝 Загрузить отчет", callback_data=f"upload_report:{task_id}")]
-    ])
+def generate_task_view_kb(task_id, status, report_id=None):
+    if status == "sent" or status == "checked":
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✏ Просмотреть задание", callback_data=f"file_task:{task_id}")],
+            [InlineKeyboardButton(text="👀 Просмотреть свой отчет", callback_data=f"view_self_report:{report_id}")],
+            [InlineKeyboardButton(text="🔙 Назад к списку заданий", callback_data="back_to_tasks")]
+        ])
+    elif status == "not_sent":
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✏ Просмотреть задание", callback_data=f"file_task:{task_id}")],
+            [InlineKeyboardButton(text="📝 Загрузить отчет", callback_data=f"upload_report:{task_id}")],
+            [InlineKeyboardButton(text="🔙 Назад к списку заданий", callback_data="back_to_tasks")]
+        ])
+
+
+# отменить кнопка
+back_to_task_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="❌ Отменить", callback_data="back_to_tasks")]
+])
+
+# вернуться в меню
+back_to_main_menu_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔙 Отменить и вернуться в главное меню", callback_data="back_to_main_menu")]
+])

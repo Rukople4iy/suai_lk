@@ -11,7 +11,7 @@ import src.keyboards.teacher_kb as teacher_kb
 import src.db.crud.student_crud as student_crud
 import src.keyboards.student_kb as student_kb
 import src.keyboards.kb as common_kb
-from src.handlers.student_echo import LoadReport, handle_load_report_file
+from src.handlers.student_echo import CheckTask, handle_load_report_file
 from src.handlers.teacher_echo import TaskForm,  handle_task_form_file
 
 
@@ -123,5 +123,5 @@ async def process_file_code(message: Message, state: FSMContext):
 
     if current_state == TaskForm.file_code.state:
         await handle_task_form_file(message, state)
-    elif current_state == LoadReport.process_file.state:
+    elif current_state == CheckTask.process_file.state:
         await handle_load_report_file(message, state)

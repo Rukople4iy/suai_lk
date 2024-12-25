@@ -38,6 +38,8 @@ class CheckTask(StatesGroup):
     discipline = State()
     task_id = State()
     task_view = State()
+    process_file = State()
+    idle = State()
 
 # просмотреть задания
 @router_main.callback_query(F.data == 'browse_task')
@@ -47,7 +49,7 @@ async def browse_task(callback: CallbackQuery, state: FSMContext):
     result_list = "\n".join(f"{i + 1}. {d}" for i, d in enumerate(disciplines))
     message_text = f"Выберите дисциплину, введя её номер:\n{result_list}"
 
-    await callback.message.answer(message_text)
+    await callback.message.answer(message_text, reply_markup=kb.back_to_main_menu_kb)
     await state.update_data(disciplines=disciplines)
     await state.set_state(CheckTask.discipline)
 
@@ -57,7 +59,7 @@ async def select_discipline(message: Message, state: FSMContext):
     state_data = await state.get_data()
     disciplines = state_data.get('disciplines')
     selected_number = int(message.text.strip()) - 1
-
+    await state.update_data(message_tasks=message)
     if 0 <= selected_number < len(disciplines):
         selected_discipline = disciplines[selected_number]
         await state.update_data(selected_discipline=selected_discipline)
@@ -66,7 +68,7 @@ async def select_discipline(message: Message, state: FSMContext):
         message_text = f"Вы выбрали дисциплину: {selected_discipline}\nВыберите задание, введя его номер:\n{result_list}"
 
         await state.update_data(tasks=tasks, selected_discipline=selected_discipline)
-        await message.answer(message_text)
+        await message.answer(message_text, reply_markup=kb.back_to_main_menu_kb)
         await state.set_state(CheckTask.task_view)
     else:
         await message.answer("Некорректный номер. Пожалуйста, выберите правильный номер дисциплины.")
@@ -81,19 +83,42 @@ async def select_task(message: Message, state: FSMContext):
     if 0 <= selected_number < len(tasks):
         selected_task = tasks[selected_number]
         await state.update_data(task=selected_task)
+        report = crud.get_report(selected_task.task_id)
 
-        message_text = f"Вы выбрали задание:\n{selected_task.task_type}\n{selected_task.task_name}\n{selected_task.task_description}\nСдать до {selected_task.due_date}"
-        await message.answer(message_text, reply_markup=kb.generate_task_view_kb(selected_task.task_id))
-        await state.clear()
+        if report is None:
+            message_text = (f"Вы выбрали задание:\n{selected_task.task_type}\n{selected_task.task_name}\n"
+                            f"{selected_task.task_description}\nСдать до {selected_task.due_date}\n"
+                            f"\nВы еще не сдали отчет")
+            await message.answer(message_text, reply_markup=kb.generate_task_view_kb(selected_task.task_id, status="not_sent", report_id=None))
+        elif report["report_status"] == "Отправлено":
+            message_text = (f"Вы выбрали задание:\n{selected_task.task_type}\n{selected_task.task_name}\n"
+                            f"{selected_task.task_description}\nСдать до {selected_task.due_date}\n"
+                            f"\nВы сдали отчет, но его еще не проверили\nСдано: {report['upload_date']}")
+            await message.answer(message_text, reply_markup=kb.generate_task_view_kb(selected_task.task_id, status="sent", report_id=report['report_id']))
+        elif report["report_status"] == "Проверено":
+            message_text = (f"Вы выбрали задание:\n{selected_task.task_type}\n{selected_task.task_name}\n"
+                            f"{selected_task.task_description}\nСдать до {selected_task.due_date}\n"
+                            f"\nВы сдали отчет и его проверили:\nСдано: {report['upload_date']}\n"
+                            f"Оценка: {report['score']}/{report['max_score']}\nКомментарий преподавателя: {report['teacher_comment']}")
+            await message.answer(message_text, reply_markup=kb.generate_task_view_kb(selected_task.task_id, status="checked", report_id=report['report_id']))
+        else:
+            message_text = (f"Вы выбрали задание:\n{selected_task.task_type}\n{selected_task.task_name}\n"
+                            f"{selected_task.task_description}\nСдать до {selected_task.due_date}\n"
+                            f"\nВы еще не сдали отчет")
+            await message.answer(message_text, reply_markup=kb.generate_task_view_kb(selected_task.task_id, status="not_sent", report_id=None))
+
+        await state.set_state(CheckTask.idle)
     else:
         await message.answer("Некорректный номер. Пожалуйста, выберите правильный номер задания.")
 
 
-class LoadReport(StatesGroup):
-    process_file = State()
 
-
-
+@router_main.callback_query(F.data.startswith('view_self_report:'))
+async def view_report(callback: CallbackQuery):
+    selected_report_id = callback.data.split(':')[1]
+    await callback.answer('')
+    file = crud.get_file_code_for_report(selected_report_id)
+    await callback.message.answer_document(file)
 
 # получить задание из базы данных
 @router_main.callback_query(F.data.startswith('file_task:'))
@@ -107,9 +132,9 @@ async def browse_task(callback: CallbackQuery):
 async def upload_report(callback: CallbackQuery, state: FSMContext):
     selected_task_id = callback.data.split(':')[1]
     await callback.answer('')
-    await state.set_state(LoadReport.process_file)
+    await state.set_state(CheckTask.process_file)
     await state.update_data(selected_task_id=selected_task_id)
-    await callback.message.answer("Загрузите отчет (максимум 1 файл)")
+    await callback.message.answer("Загрузите отчет (максимум 1 файл)", reply_markup=kb.back_to_task_kb)
 
 async def handle_load_report_file(message: Message, state: FSMContext):
     logging.info("Файл получен для LoadReport.")
@@ -117,7 +142,7 @@ async def handle_load_report_file(message: Message, state: FSMContext):
     selected_task_id = state_data.get("selected_task_id")
     file_code = message.document.file_id
     logging.info("получен id файла.")
-    await message.answer("Готово. Отчет сформирован и будет отправлен в базу данных.")
+    await message.answer("Готово. Отчет сформирован и будет отправлен в базу данных.", reply_markup=kb.main_menu_kb)
 
     try:
         crud.add_report(selected_task_id, str(message.from_user.id), file_code)
@@ -127,3 +152,21 @@ async def handle_load_report_file(message: Message, state: FSMContext):
         await message.answer("Произошла ошибка при сохранении отчета. Попробуйте снова.")
 
     await state.clear()
+
+
+# callback back_to_tasks отменить отправку отчета и вернуться к  функции select_discipline c параметрами message_tasks(из состояния) и state
+@router_main.callback_query(F.data == 'back_to_tasks')
+async def back_to_tasks(callback: CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    message_tasks = state_data.get('message_tasks')
+    await state.set_state(CheckTask.discipline)
+    await callback.answer('')
+    await select_discipline(message_tasks, state)
+
+
+# функция callback back_to_main_menu для возврата в главное меню отменящее текущее состояние
+@router_main.callback_query(F.data == 'back_to_main_menu')
+async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
+    await callback.answer('')
+    await state.clear()
+    await callback.message.answer("Вы вернулись в главное меню.", reply_markup=kb.main_menu_kb)
