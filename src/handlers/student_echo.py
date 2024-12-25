@@ -17,19 +17,44 @@ router_main: Router = Router()
 @router_main.callback_query(F.data == 'show_disciplines_and_teachers')
 async def show_disciplines_and_teachers(callback: CallbackQuery):
     await callback.answer('')
-    result_list = "\n".join(crud.get_disciplines_and_teachers(str(callback.from_user.id)))
-    message_text = f"Дисциплина | Преподаватели\n{result_list}"
+    data = crud.get_disciplines_and_teachers(str(callback.from_user.id))
 
-    await callback.message.answer(message_text)
+    if not data or isinstance(data, str):  # Если данные отсутствуют или это сообщение об ошибке
+        await callback.message.answer(data if isinstance(data, str) else "Нет данных о дисциплинах и преподавателях.")
+        return
+
+    # Формируем список
+    message_text = "*Дисциплины и преподаватели:*\n\n" + "\n".join(
+        f"📚 {entry.split(' | ')[0]}\n👨‍🏫 {entry.split(' | ')[1]} \n" for entry in data
+    )
+
+    # Отправляем сообщение
+    await callback.message.answer(message_text, parse_mode="Markdown")
+
 
 @router_main.callback_query(F.data == 'show_group_members')
 async def show_group_members(callback: CallbackQuery):
     await callback.answer('')
-    group_number = (crud.get_student_by_telegram_id(str(callback.from_user.id))).group_number
-    result_list = "\n".join(crud.get_group_members(str(callback.from_user.id)))
-    message_text = f"Список группы {group_number}:\n{result_list}"
+    student = crud.get_student_by_telegram_id(str(callback.from_user.id))
 
-    await callback.message.answer(message_text)
+    if not student:
+        await callback.message.answer("Студент не найден.")
+        return
+
+    group_number = student.group_number
+    group_members = crud.get_group_members(str(callback.from_user.id))
+
+    if isinstance(group_members, str):  # Если вернулось сообщение об ошибке
+        await callback.message.answer(group_members)
+        return
+
+    # Формируем список студентов с табуляцией
+    result_list = "\n".join(f"\t{member}" for member in group_members)
+    message_text = f"👥*Список группы {group_number}:*\n\n{result_list}"
+
+    await callback.message.answer(message_text, parse_mode="Markdown")
+
+
 
 
 

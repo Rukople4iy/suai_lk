@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
 from datetime import datetime
+from tabulate import tabulate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -16,6 +17,14 @@ router_main: Router = Router()
 
 
 # Хэндлер для callback_data "us_show_groups"
+from tabulate import tabulate
+
+
+from tabulate import tabulate
+
+from tabulate import tabulate
+
+
 @router_main.callback_query(F.data == 'show_teacher_disciplines')
 async def show_group_members(callback: CallbackQuery):
     await callback.answer('')
@@ -25,10 +34,13 @@ async def show_group_members(callback: CallbackQuery):
         await callback.message.answer("У вас нет назначенных дисциплин.")
         return
 
-    result_list = "\n".join([f"{d['discipline']} | {d['group_number']}" for d in disciplines])
-    message_text = f"Дисциплина | Группа\n{result_list}"
+    # Формируем список
+    message_text = "*Ваши дисциплины:*\n\n" + "\n".join(
+        f"📚 {d['discipline']} (Группа: {d['group_number']})" for d in disciplines
+    )
 
-    await callback.message.answer(message_text, reply_markup=kb.main_menu_kb)
+    # Отправляем сообщение
+    await callback.message.answer(message_text, reply_markup=kb.main_menu_kb, parse_mode="Markdown")
 
 
 class TaskForm(StatesGroup):

@@ -25,6 +25,6 @@ us_info_kb = InlineKeyboardMarkup(inline_keyboard=[
 
 
 contacts_kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="📞Андрон", url="https://t.me/newfail")],
-    [InlineKeyboardButton(text="🤠Лёха", url="https://t.me/Rukople4iy")]
+    [InlineKeyboardButton(text="📞Андрей", url="https://t.me/newfail")],
+    [InlineKeyboardButton(text="🤠Алексей", url="https://t.me/Rukople4iy")]
 ])
