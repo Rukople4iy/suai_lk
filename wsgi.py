@@ -4,7 +4,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config import Config, load_config
 import src.handlers.student_echo as student_echo
-import src.handlers.admin_echo as admin_echo
 import src.handlers.guest_echo as guest_echo
 import src.handlers.common_echo as common_echo
 import src.handlers.teacher_echo as teacher_echo

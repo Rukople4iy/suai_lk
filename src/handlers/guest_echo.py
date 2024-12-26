@@ -3,7 +3,6 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 import src.handlers.student_echo as student_echo
 import src.handlers.teacher_echo as teacher_echo
-import src.handlers.admin_echo as admin_echo
 import src.db.crud.common_crud as crud
 import src.db.crud.student_crud as student_crud
 import src.db.crud.teacher_crud as teacher_crud
