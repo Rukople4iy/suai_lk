@@ -8,7 +8,7 @@ from datetime import datetime
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from tabulate import tabulate
 
 logging.basicConfig(level=logging.INFO)
@@ -136,18 +136,21 @@ async def process_max_score(message: Message, state: FSMContext):
     await state.set_state(TaskForm.due_date)
 
 
+from datetime import datetime, timedelta
+
 @router_main.message(TaskForm.due_date)
 async def process_due_date(message: Message, state: FSMContext):
     due_date_str = message.text
     try:
-        # Проверка формата даты
-        due_date = datetime.strptime(due_date_str, "%d.%m.%Y").date()
+        # Проверка формата даты и добавление 1 дня
+        due_date = datetime.strptime(due_date_str, "%d.%m.%Y").date() + timedelta(days=1)
 
         # Проверка, что дата в будущем
         if due_date <= datetime.now().date():
             raise ValueError("Предельная дата выполнения должна быть в будущем.")
 
-        await state.update_data(due_date=due_date_str)
+        # Сохраняем новую дату в формате с добавленным днём
+        await state.update_data(due_date=due_date.strftime("%d.%m.%Y"))
         await message.answer("Загрузите дополнительный материал (максимум 1 файл)", reply_markup=kb.back_to_main_menu_kb)
         await state.set_state(TaskForm.file_code)
 

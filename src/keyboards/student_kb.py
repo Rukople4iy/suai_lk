@@ -5,8 +5,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 main_menu_kb = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text="👨 Профиль"), KeyboardButton(text="🧐 Задания")],
-    [KeyboardButton(text="💁‍♂️ Информация")],
-    [KeyboardButton(text="❓ Как все работает"), KeyboardButton(text="👩‍💻 Связаться с админом")]
+    [KeyboardButton(text="️📚 Информация")],
+    [KeyboardButton(text="❓ Как все работает"), KeyboardButton(text="👨‍💻 Связаться с админом")]
 ], resize_keyboard=True, input_field_placeholder="Выберите пункт меню")
 
 info_kb = InlineKeyboardMarkup(inline_keyboard=[
